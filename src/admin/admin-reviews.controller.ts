@@ -7,6 +7,7 @@ import {
   Body,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AdminReviewsService } from './admin-reviews.service';
 import { ModerateReviewDto } from './dto/moderate-review.dto';
 import { AdminReviewsQueryDto } from './dto/admin-reviews-query.dto';
@@ -14,6 +15,8 @@ import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 
+@ApiTags('admin')
+@ApiBearerAuth()
 @Controller('admin')
 @UseGuards(AuthGuard, RolesGuard)
 @Roles('admin')

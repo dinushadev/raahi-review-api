@@ -4,7 +4,10 @@ export class InitialSchema1738400000000 implements MigrationInterface {
   name = 'InitialSchema1738400000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`);
+    const schema = process.env.DATABASE_SCHEMA ?? 'reviewdb';
+    await queryRunner.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+    await queryRunner.query(`CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA "${schema}"`);
+    await queryRunner.query(`SET search_path TO "${schema}", "public"`);
     await queryRunner.query(`
       CREATE TYPE "travelers_status_enum" AS ENUM('ACTIVE', 'SUSPENDED')
     `);
