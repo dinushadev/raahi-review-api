@@ -6,10 +6,22 @@ provider:
   region: ${opt:region, 'us-east-1'}
   memorySize: 512
   timeout: 28
+  httpApi:
+    # Explicit CORS (required because app uses credentials: true; * origin is not allowed with credentials)
+    cors:
+      allowedOrigins:
+        - ${env:CORS_ORIGIN, '*'}
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+        - x-user-id
+        - x-user-role
   environment:
     NODE_ENV: ${opt:stage, 'dev'}
     DATABASE_URL: ${env:DATABASE_URL, ''}
     SUPABASE_JWT_SECRET: ${env:SUPABASE_JWT_SECRET, ''}
+    # Comma-separated origins your frontend runs on (e.g. https://myapp.com)
+    CORS_ORIGIN: ${env:CORS_ORIGIN, '*'}
   # If your PostgreSQL is in a VPC, uncomment and set:
   # vpc:
   #   securityGroupIds:
@@ -36,6 +48,7 @@ package:
   patterns:
     - '!node_modules/**'
     - 'node_modules/**'
+    - 'dist/**'
   individually: false
 
 custom:

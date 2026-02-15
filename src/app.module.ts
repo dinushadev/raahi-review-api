@@ -12,16 +12,17 @@ import { UserContextMiddleware } from './common/middleware/user-context.middlewa
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env', '.env.local'],
+      envFilePath: ['.env'],
     }),
     TypeOrmModule.forRootAsync({
       useFactory: () => ({
         type: 'postgres',
-        url: process.env.DATABASE_URL,
+        url: 'postgresql://postgres:Raahi123@raahidb.checc0g624in.us-east-1.rds.amazonaws.com:5432/postgres',
         schema: process.env.DATABASE_SCHEMA ?? 'reviewdb',
         entities: [ProviderReview, TravelerReview],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
+        ssl: process.env.DATABASE_SSL !== 'false' ? { rejectUnauthorized: false } : false,
       }),
     }),
     ReviewsModule,

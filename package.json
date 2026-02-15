@@ -17,8 +17,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "deploy": "serverless deploy",
-    "deploy:dev": "serverless deploy --stage dev"
+    "deploy": "npm run build && serverless deploy",
+    "deploy:dev": "npm run build && serverless deploy --stage dev"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",

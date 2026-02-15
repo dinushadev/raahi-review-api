@@ -2,7 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ExpressAdapter } from '@nestjs/platform-express';
-import serverlessExpress from '@vendia/serverless-express';
+// Use require so Lambda gets the callable (package has no .default in CommonJS)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const serverlessExpress = require('@vendia/serverless-express');
 import { Handler } from 'aws-lambda';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
