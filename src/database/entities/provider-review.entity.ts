@@ -14,6 +14,7 @@ import { ReviewStatus } from './review-status.enum';
 @Index('idx_provider_reviews_provider_status', ['provider_id', 'status'])
 @Index('idx_provider_reviews_reviewer', ['reviewer_id'])
 @Index('idx_provider_reviews_created_at', ['created_at'])
+@Index('idx_provider_reviews_booking_id', ['booking_id'])
 export class ProviderReview {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -23,6 +24,9 @@ export class ProviderReview {
 
   @Column('uuid')
   reviewer_id: string;
+
+  @Column('uuid', { nullable: true })
+  booking_id: string | null;
 
   @Column({ type: 'smallint' })
   rating: number;

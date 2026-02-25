@@ -57,6 +57,7 @@ export class ReviewsService {
         review_text: dto.review_text ?? null,
         reviewer_name: dto.reviewer_name ?? null,
         status: ReviewStatus.PENDING,
+        booking_id: dto.booking_id ?? null,
       });
       try {
         return await this.providerReviewRepo.save(review);
@@ -81,6 +82,7 @@ export class ReviewsService {
         review_text: dto.review_text ?? null,
         reviewer_name: dto.reviewer_name ?? null,
         status: ReviewStatus.PENDING,
+        booking_id: dto.booking_id ?? null,
       });
       try {
         return await this.travelerReviewRepo.save(review);

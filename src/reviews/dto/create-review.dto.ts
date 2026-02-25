@@ -11,6 +11,11 @@ export class CreateReviewDto {
   @IsUUID()
   subject_id: string;
 
+  @ApiPropertyOptional({ description: 'UUID of the booking this review is associated with' })
+  @IsOptional()
+  @IsUUID()
+  booking_id?: string;
+
   @ApiProperty({ description: 'Rating 1-5', minimum: 1, maximum: 5, example: 5 })
   @IsInt()
   @Min(1)
@@ -18,10 +23,10 @@ export class CreateReviewDto {
   @Type(() => Number)
   rating: number;
 
-  @ApiPropertyOptional({ description: 'Review text (20-500 chars)', minLength: 20, maxLength: 500 })
+  @ApiPropertyOptional({ description: 'Review text (max 10 chars)', maxLength: 10 })
   @IsOptional()
-  @Length(20, 500, {
-    message: 'review_text must be between 20 and 500 characters when provided',
+  @Length(0, 10, {
+    message: 'review_text must be at most 10 characters when provided',
   })
   review_text?: string;
 

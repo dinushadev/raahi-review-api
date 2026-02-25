@@ -20,6 +20,7 @@ provider:
     NODE_ENV: ${opt:stage, 'dev'}
     DATABASE_URL: ${env:DATABASE_URL, ''}
     SUPABASE_JWT_SECRET: ${env:SUPABASE_JWT_SECRET, ''}
+    PROVIDER_JWT_SECRET: ${env:PROVIDER_JWT_SECRET, ''}
     # Comma-separated origins your frontend runs on (e.g. https://myapp.com)
     CORS_ORIGIN: ${env:CORS_ORIGIN, '*'}
   # If your PostgreSQL is in a VPC, uncomment and set:
