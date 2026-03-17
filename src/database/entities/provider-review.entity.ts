@@ -6,8 +6,10 @@ import {
   UpdateDateColumn,
   Index,
   Unique,
+  OneToOne,
 } from 'typeorm';
 import { ReviewStatus } from './review-status.enum';
+import { ReviewReply } from './review-reply.entity';
 
 @Entity('provider_reviews')
 @Unique(['provider_id', 'reviewer_id'])
@@ -52,4 +54,14 @@ export class ProviderReview {
 
   @UpdateDateColumn({ type: 'timestamp' })
   updated_at: Date;
+
+//Realtions
+
+@OneToOne(() => ReviewReply, (reply) => reply.review,{
+
+    nullable : true ,
+    eager : false ,
+})
+  reply : ReviewReply | null ;
+
 }
