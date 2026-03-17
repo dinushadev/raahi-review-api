@@ -8,10 +8,10 @@ config();
 export const AppDataSource = new DataSource({
   type: 'postgres',
   url: 'postgresql://postgres:1234@127.0.0.1:5432/review_db',
-  schema: process.env.DATABASE_SCHEMA ?? 'reviewdb',
+  //schema: process.env.DATABASE_SCHEMA ?? 'reviewdb',
   entities: [__dirname + '/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/migrations/*{.ts,.js}'],
   ssl: false,
-  synchronize: true,
-  
+  synchronize: false,
+
 });
