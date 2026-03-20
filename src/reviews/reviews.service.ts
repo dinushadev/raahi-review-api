@@ -8,8 +8,11 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ProviderReview } from '../database/entities/provider-review.entity';
+import { ProviderReviewReply } from '../database/entities/provider-review-reply.entity';
 import { TravelerReview } from '../database/entities/traveler-review.entity';
+import { ReviewReplyStatus } from '../database/entities/review-reply-status.enum';
 import { ReviewStatus } from '../database/entities/review-status.enum';
+import { CreateReplyDto } from './dto/create-reply.dto';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { SubjectReviewsQueryDto } from './dto/subject-reviews-query.dto';
@@ -35,6 +38,8 @@ export class ReviewsService {
   constructor(
     @InjectRepository(ProviderReview)
     private readonly providerReviewRepo: Repository<ProviderReview>,
+    @InjectRepository(ProviderReviewReply)
+    private readonly providerReviewReplyRepo: Repository<ProviderReviewReply>,
     @InjectRepository(TravelerReview)
     private readonly travelerReviewRepo: Repository<TravelerReview>,
   ) {}
@@ -93,6 +98,50 @@ export class ReviewsService {
         }
         throw err;
       }
+    }
+  }
+
+  async createReply(
+    providerId: string,
+    reviewId: string,
+    dto: CreateReplyDto,
+  ): Promise<ProviderReviewReply> {
+    const found = await this.findReviewById(reviewId);
+    if (!found) {
+      throw new NotFoundException('Review not found');
+    }
+    if (found.type !== 'provider') {
+      throw new NotFoundException('Review not found');
+    }
+    const review = found.review as ProviderReview;
+    if (review.provider_id !== providerId) {
+      throw new ForbiddenException('You can only reply to reviews about yourself');
+    }
+
+    const existing = await this.providerReviewReplyRepo.findOne({
+      where: { review_id: reviewId },
+    });
+    if (existing) {
+      throw new ConflictException('This review already has a reply');
+    }
+
+    const reply = this.providerReviewReplyRepo.create({
+      review_id: reviewId,
+      provider_id: providerId,
+      reply_text: dto.reply_text,
+      status: ReviewReplyStatus.ACTIVE,
+    });
+
+    try {
+      return await this.providerReviewReplyRepo.save(reply);
+    } catch (err: unknown) {
+      const code = err && typeof err === 'object' && 'code' in err
+        ? (err as { code: string }).code
+        : '';
+      if (code === '23505') {
+        throw new ConflictException('This review already has a reply');
+      }
+      throw err;
     }
   }
 
