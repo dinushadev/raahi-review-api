@@ -175,6 +175,23 @@ export class ReviewsService {
     return this.providerReviewReplyRepo.save(reply);
   }
 
+  async deleteReply(providerId: string, reviewId: string): Promise<void> {
+    const reply = await this.providerReviewReplyRepo.findOne({
+      where: { review_id: reviewId },
+    });
+    if (!reply || reply.status === ReviewReplyStatus.DELETED) {
+      throw new NotFoundException('Reply not found');
+    }
+    if (reply.provider_id !== providerId) {
+      throw new ForbiddenException('You can only delete your own reply');
+    }
+
+    reply.status = ReviewReplyStatus.DELETED;
+    reply.updated_at = new Date();
+
+    await this.providerReviewReplyRepo.save(reply);
+  }
+
   private async findReviewById(reviewId: string): Promise<{
     review: ProviderReview | TravelerReview;
     type: 'provider' | 'traveler';
