@@ -14,10 +14,12 @@ import { ReviewReplyStatus } from '../database/entities/review-reply-status.enum
 import { ReviewStatus } from '../database/entities/review-status.enum';
 import { CreateReplyDto } from './dto/create-reply.dto';
 import { CreateReviewDto } from './dto/create-review.dto';
+import { UpdateReplyDto } from './dto/update-reply.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { SubjectReviewsQueryDto } from './dto/subject-reviews-query.dto';
 
 const EDIT_WINDOW_HOURS = 24;
+const REPLY_EDIT_WINDOW_HOURS = 48;
 
 export type ReviewRecord = ProviderReview | TravelerReview;
 
@@ -143,6 +145,34 @@ export class ReviewsService {
       }
       throw err;
     }
+  }
+
+  async updateReply(
+    providerId: string,
+    reviewId: string,
+    dto: UpdateReplyDto,
+  ): Promise<ProviderReviewReply> {
+    const reply = await this.providerReviewReplyRepo.findOne({
+      where: { review_id: reviewId },
+    });
+    if (!reply || reply.status === ReviewReplyStatus.DELETED) {
+      throw new NotFoundException('Reply not found');
+    }
+    if (reply.provider_id !== providerId) {
+      throw new ForbiddenException('You can only edit your own reply');
+    }
+
+    const now = new Date();
+    const windowEnd = new Date(reply.created_at);
+    windowEnd.setHours(windowEnd.getHours() + REPLY_EDIT_WINDOW_HOURS);
+    if (now > windowEnd) {
+      throw new GoneException('Edit window has expired');
+    }
+
+    reply.reply_text = dto.reply_text;
+    reply.updated_at = now;
+
+    return this.providerReviewReplyRepo.save(reply);
   }
 
   private async findReviewById(reviewId: string): Promise<{
