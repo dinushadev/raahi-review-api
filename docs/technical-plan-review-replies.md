@@ -44,9 +44,11 @@ I will use a reply status enum with values `ACTIVE` and `DELETED`. This follows 
 
 | Index | Type | Why |
 | --- | --- | --- |
-| `review_id` | Unique index | Enforces the “only one reply per review” rule and supports quick lookup when creating, updating, deleting, or joining replies by review |
+| `review_id` | Unique constraint-backed index | Enforces the "only one reply per review" rule and supports quick lookup when creating, updating, deleting, or joining replies by review |
 | `provider_id` | Standard index | Supports ownership checks efficiently and helps if replies later need to be queried by provider |
 | `status` | Standard index | Useful when fetching reviews with replies and excluding soft-deleted replies |
+
+`review_id` will use a `UNIQUE` constraint only, not a separate standalone unique index. In PostgreSQL, the unique constraint already creates the supporting unique index internally, so adding another unique index on the same column would be redundant.
 
 ### Final Integrity Rules Guaranteed by the Schema
 With this schema, the database guarantees that:
@@ -440,3 +442,4 @@ The integration approach is:
 - reuse the current authentication, role-checking, validation, and service patterns already used by the reviews feature
 
 This keeps the design consistent with the current codebase and avoids unnecessary duplication.
+
