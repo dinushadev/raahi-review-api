@@ -1,17 +1,27 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  GoneException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { ProviderReview } from '../database/entities/provider-review.entity';
+import { ProviderReviewReply } from '../database/entities/provider-review-reply.entity';
+import { ReviewReplyStatus } from '../database/entities/review-reply-status.enum';
 import { TravelerReview } from '../database/entities/traveler-review.entity';
 import { ReviewStatus } from '../database/entities/review-status.enum';
+import { CreateReplyDto } from './dto/create-reply.dto';
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { SubjectReviewsQueryDto } from './dto/subject-reviews-query.dto';
+import { UpdateReplyDto } from './dto/update-reply.dto';
 
 describe('ReviewsService', () => {
   let service: ReviewsService;
   let providerReviewRepo: jest.Mocked<Repository<ProviderReview>>;
+  let providerReviewReplyRepo: jest.Mocked<Repository<ProviderReviewReply>>;
   let travelerReviewRepo: jest.Mocked<Repository<TravelerReview>>;
 
   const mockProviderReview = {
@@ -40,6 +50,16 @@ describe('ReviewsService', () => {
     updated_at: new Date(),
   } as TravelerReview;
 
+  const mockReply = {
+    id: 'reply-uuid',
+    review_id: 'review-uuid',
+    provider_id: 'provider-uuid',
+    reply_text: 'Thank you for your feedback.',
+    status: ReviewReplyStatus.ACTIVE,
+    created_at: new Date(),
+    updated_at: new Date(),
+  } as ProviderReviewReply;
+
   beforeEach(async () => {
     const mockProviderRepo = {
       create: jest.fn().mockReturnValue(mockProviderReview),
@@ -54,6 +74,12 @@ describe('ReviewsService', () => {
         clone: jest.fn().mockReturnThis(),
         getRawOne: jest.fn().mockResolvedValue({ average_rating: '4.5', total_reviews: '10' }),
       })),
+    };
+    const mockProviderReplyRepo = {
+      create: jest.fn().mockReturnValue(mockReply),
+      save: jest.fn().mockResolvedValue(mockReply),
+      findOne: jest.fn().mockResolvedValue(null),
+      find: jest.fn().mockResolvedValue([]),
     };
     const mockTravelerRepo = {
       create: jest.fn().mockReturnValue(mockTravelerReview),
@@ -78,6 +104,10 @@ describe('ReviewsService', () => {
           useValue: mockProviderRepo,
         },
         {
+          provide: getRepositoryToken(ProviderReviewReply),
+          useValue: mockProviderReplyRepo,
+        },
+        {
           provide: getRepositoryToken(TravelerReview),
           useValue: mockTravelerRepo,
         },
@@ -86,6 +116,7 @@ describe('ReviewsService', () => {
 
     service = module.get<ReviewsService>(ReviewsService);
     providerReviewRepo = module.get(getRepositoryToken(ProviderReview));
+    providerReviewReplyRepo = module.get(getRepositoryToken(ProviderReviewReply));
     travelerReviewRepo = module.get(getRepositoryToken(TravelerReview));
   });
 
@@ -168,6 +199,64 @@ describe('ReviewsService', () => {
       expect(result.average_rating).toBeNull();
       expect(result.reviews).toEqual([]);
     });
+
+    it('should include active reply as nested object', async () => {
+      const approvedReview = {
+        ...mockProviderReview,
+        status: ReviewStatus.APPROVED,
+      } as ProviderReview;
+      (providerReviewRepo.find as jest.Mock).mockResolvedValue([approvedReview]);
+      (providerReviewReplyRepo.find as jest.Mock).mockResolvedValue([mockReply]);
+      (providerReviewRepo.createQueryBuilder as jest.Mock).mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        clone: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ average_rating: '5', total_reviews: '1' }),
+      });
+
+      const query: SubjectReviewsQueryDto = { sort: 'recent', limit: 10, offset: 0 };
+      const result = await service.getProviderReviews('provider-uuid', query);
+
+      expect(result.reviews).toEqual([
+        {
+          id: approvedReview.id,
+          rating: approvedReview.rating,
+          review_text: approvedReview.review_text,
+          reviewer_name: approvedReview.reviewer_name,
+          is_verified: approvedReview.is_verified,
+          created_at: approvedReview.created_at,
+          reply: {
+            reply_text: mockReply.reply_text,
+            created_at: mockReply.created_at,
+            updated_at: mockReply.updated_at,
+          },
+        },
+      ]);
+    });
+
+    it('should return reply as null when no active reply exists', async () => {
+      const approvedReview = {
+        ...mockProviderReview,
+        status: ReviewStatus.APPROVED,
+      } as ProviderReview;
+      (providerReviewRepo.find as jest.Mock).mockResolvedValue([approvedReview]);
+      (providerReviewReplyRepo.find as jest.Mock).mockResolvedValue([]);
+      (providerReviewRepo.createQueryBuilder as jest.Mock).mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        clone: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ average_rating: '5', total_reviews: '1' }),
+      });
+
+      const query: SubjectReviewsQueryDto = { sort: 'recent', limit: 10, offset: 0 };
+      const result = await service.getProviderReviews('provider-uuid', query);
+
+      expect(result.reviews[0].reply).toBeNull();
+    });
   });
 
   describe('getTravelerReviews', () => {
@@ -185,6 +274,120 @@ describe('ReviewsService', () => {
       const result = await service.getTravelerReviews('traveler-uuid', query);
       expect(result.total_reviews).toBe(0);
       expect(result.reviews).toEqual([]);
+    });
+  });
+
+  describe('reply lifecycle', () => {
+    it('should create a reply for a provider review', async () => {
+      (providerReviewRepo.findOne as jest.Mock).mockResolvedValue(mockProviderReview);
+      (providerReviewReplyRepo.findOne as jest.Mock).mockResolvedValue(null);
+      const dto: CreateReplyDto = {
+        reply_text: 'Thank you for your detailed feedback.',
+      };
+
+      const result = await service.createReply('provider-uuid', 'review-uuid', dto);
+
+      expect(result).toEqual(mockReply);
+      expect(providerReviewReplyRepo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          review_id: 'review-uuid',
+          provider_id: 'provider-uuid',
+          reply_text: dto.reply_text,
+          status: ReviewReplyStatus.ACTIVE,
+        }),
+      );
+    });
+
+    it('should reject duplicate reply creation', async () => {
+      (providerReviewRepo.findOne as jest.Mock).mockResolvedValue(mockProviderReview);
+      (providerReviewReplyRepo.findOne as jest.Mock).mockResolvedValue(mockReply);
+
+      await expect(
+        service.createReply('provider-uuid', 'review-uuid', {
+          reply_text: 'Thank you for your detailed feedback.',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should reject reply creation by wrong provider', async () => {
+      (providerReviewRepo.findOne as jest.Mock).mockResolvedValue(mockProviderReview);
+
+      await expect(
+        service.createReply('other-provider', 'review-uuid', {
+          reply_text: 'Thank you for your detailed feedback.',
+        }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should update a reply within 48 hours', async () => {
+      const recentReply = {
+        ...mockReply,
+        created_at: new Date(Date.now() - 47 * 60 * 60 * 1000),
+      } as ProviderReviewReply;
+      (providerReviewReplyRepo.findOne as jest.Mock).mockResolvedValue(recentReply);
+      (providerReviewReplyRepo.save as jest.Mock).mockResolvedValue({
+        ...recentReply,
+        reply_text: 'Updated reply text for this review.',
+      });
+      const dto: UpdateReplyDto = {
+        reply_text: 'Updated reply text for this review.',
+      };
+
+      const result = await service.updateReply('provider-uuid', 'review-uuid', dto);
+
+      expect(result.reply_text).toBe(dto.reply_text);
+      expect(providerReviewReplyRepo.save).toHaveBeenCalled();
+    });
+
+    it('should reject reply update after 48 hours', async () => {
+      const oldReply = {
+        ...mockReply,
+        created_at: new Date(Date.now() - 49 * 60 * 60 * 1000),
+      } as ProviderReviewReply;
+      (providerReviewReplyRepo.findOne as jest.Mock).mockResolvedValue(oldReply);
+
+      await expect(
+        service.updateReply('provider-uuid', 'review-uuid', {
+          reply_text: 'Updated reply text for this review.',
+        }),
+      ).rejects.toThrow(GoneException);
+    });
+
+    it('should soft-delete a reply', async () => {
+      const activeReply = {
+        ...mockReply,
+        status: ReviewReplyStatus.ACTIVE,
+      } as ProviderReviewReply;
+      (providerReviewReplyRepo.findOne as jest.Mock).mockResolvedValue(activeReply);
+
+      await service.deleteReply('provider-uuid', 'review-uuid');
+
+      expect(providerReviewReplyRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: ReviewReplyStatus.DELETED,
+        }),
+      );
+    });
+
+    it('should reject deleting a reply by wrong provider', async () => {
+      (providerReviewReplyRepo.findOne as jest.Mock).mockResolvedValue(mockReply);
+
+      await expect(
+        service.deleteReply('other-provider', 'review-uuid'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should treat deleted reply as not found on update', async () => {
+      (providerReviewReplyRepo.findOne as jest.Mock).mockResolvedValue({
+        ...mockReply,
+        status: ReviewReplyStatus.DELETED,
+      } as ProviderReviewReply);
+
+      await expect(
+        service.updateReply('provider-uuid', 'review-uuid', {
+          reply_text: 'Updated reply text for this review.',
+        }),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
