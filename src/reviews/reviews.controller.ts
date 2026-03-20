@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Put,
+  Patch,
   Delete,
   Get,
   Body,
@@ -13,7 +14,9 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ReviewsService } from './reviews.service';
+import { CreateReplyDto } from './dto/create-reply.dto';
 import { CreateReviewDto } from './dto/create-review.dto';
+import { UpdateReplyDto } from './dto/update-reply.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { SubjectReviewsQueryDto } from './dto/subject-reviews-query.dto';
 import { AuthGuard } from '../common/guards/auth.guard';
@@ -55,6 +58,39 @@ export class ReviewsController {
     @User() user: RequestUser,
   ) {
     await this.reviewsService.deleteOwnReview(reviewId, user.id);
+  }
+
+  @Post('reviews/:review_id/reply')
+  @UseGuards(RolesGuard)
+  @Roles('provider')
+  createReply(
+    @Param('review_id') reviewId: string,
+    @User() user: RequestUser,
+    @Body() dto: CreateReplyDto,
+  ) {
+    return this.reviewsService.createReply(user.id, reviewId, dto);
+  }
+
+  @Patch('reviews/:review_id/reply')
+  @UseGuards(RolesGuard)
+  @Roles('provider')
+  updateReply(
+    @Param('review_id') reviewId: string,
+    @User() user: RequestUser,
+    @Body() dto: UpdateReplyDto,
+  ) {
+    return this.reviewsService.updateReply(user.id, reviewId, dto);
+  }
+
+  @Delete('reviews/:review_id/reply')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(RolesGuard)
+  @Roles('provider')
+  async deleteReply(
+    @Param('review_id') reviewId: string,
+    @User() user: RequestUser,
+  ) {
+    await this.reviewsService.deleteReply(user.id, reviewId);
   }
 
   @Get('providers/:provider_id/reviews')
