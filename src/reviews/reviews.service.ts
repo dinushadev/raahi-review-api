@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { ProviderReview } from '../database/entities/provider-review.entity';
 import { ProviderReviewReply } from '../database/entities/provider-review-reply.entity';
 import { TravelerReview } from '../database/entities/traveler-review.entity';
@@ -27,11 +27,17 @@ export interface SubjectReviewsResult {
   average_rating: number | null;
   total_reviews: number;
   reviews: Array<{
+    id: string;
     rating: number;
     review_text: string | null;
     reviewer_name: string | null;
     is_verified: boolean;
     created_at: Date;
+    reply?: {
+      reply_text: string;
+      created_at: Date;
+      updated_at: Date;
+    } | null;
   }>;
 }
 
@@ -263,12 +269,75 @@ export class ReviewsService {
     providerId: string,
     query: SubjectReviewsQueryDto,
   ): Promise<SubjectReviewsResult> {
-    return this.getSubjectReviews(
-      this.providerReviewRepo,
-      'provider_id',
-      providerId,
-      query,
+    const sort = query.sort ?? 'recent';
+    const limit = Math.min(query.limit ?? 10, 100);
+    const offset = query.offset ?? 0;
+
+    const qb = this.providerReviewRepo
+      .createQueryBuilder('r')
+      .where('r.provider_id = :providerId', { providerId })
+      .andWhere('r.status = :status', { status: ReviewStatus.APPROVED });
+
+    const aggregate = await qb
+      .clone()
+      .select('AVG(r.rating)', 'average_rating')
+      .addSelect('COUNT(r.id)', 'total_reviews')
+      .getRawOne<{ average_rating: string; total_reviews: string }>();
+
+    const totalReviews = parseInt(aggregate?.total_reviews ?? '0', 10);
+    const averageRating = aggregate?.average_rating
+      ? parseFloat(aggregate.average_rating)
+      : null;
+
+    const order: Record<string, 'ASC' | 'DESC'> =
+      sort === 'rating'
+        ? { rating: 'DESC', created_at: 'DESC' }
+        : { created_at: 'DESC' };
+
+    const reviews = await this.providerReviewRepo.find({
+      where: { provider_id: providerId, status: ReviewStatus.APPROVED },
+      select: ['id', 'rating', 'review_text', 'reviewer_name', 'is_verified', 'created_at'],
+      order,
+      skip: offset,
+      take: limit,
+    });
+
+    const replies = reviews.length
+      ? await this.providerReviewReplyRepo.find({
+          where: {
+            review_id: In(reviews.map((review) => review.id)),
+            status: ReviewReplyStatus.ACTIVE,
+          },
+          select: ['review_id', 'reply_text', 'created_at', 'updated_at'],
+        })
+      : [];
+
+    const repliesByReviewId = new Map(
+      replies.map((reply) => [reply.review_id, reply] as const),
     );
+
+    return {
+      average_rating: averageRating,
+      total_reviews: totalReviews,
+      reviews: reviews.map((review) => {
+        const reply = repliesByReviewId.get(review.id);
+        return {
+          id: review.id,
+          rating: review.rating,
+          review_text: review.review_text,
+          reviewer_name: review.reviewer_name,
+          is_verified: review.is_verified,
+          created_at: review.created_at,
+          reply: reply
+            ? {
+                reply_text: reply.reply_text,
+                created_at: reply.created_at,
+                updated_at: reply.updated_at,
+              }
+            : null,
+        };
+      }),
+    };
   }
 
   async getTravelerReviews(
@@ -316,7 +385,7 @@ export class ReviewsService {
 
     const reviews = await repo.find({
       where: { [subjectColumn]: subjectId, status: ReviewStatus.APPROVED },
-      select: ['rating', 'review_text', 'reviewer_name', 'is_verified', 'created_at'],
+      select: ['id', 'rating', 'review_text', 'reviewer_name', 'is_verified', 'created_at'],
       order,
       skip: offset,
       take: limit,
@@ -326,6 +395,7 @@ export class ReviewsService {
       average_rating: averageRating,
       total_reviews: totalReviews,
       reviews: reviews.map((r) => ({
+        id: r.id,
         rating: r.rating,
         review_text: r.review_text,
         reviewer_name: r.reviewer_name,
