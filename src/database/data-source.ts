@@ -18,5 +18,5 @@ export const AppDataSource = new DataSource({
   ssl: false,
 
   // ⚠️ OK for development only
-  synchronize: true,
+  synchronize: false,
 });
