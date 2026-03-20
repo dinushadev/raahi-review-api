@@ -38,3 +38,6 @@ coverage/
 *.pid
 *.seed
 .cache/
+
+
+docker-compose.yml

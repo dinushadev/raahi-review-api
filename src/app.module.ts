@@ -17,7 +17,8 @@ import { UserContextMiddleware } from './common/middleware/user-context.middlewa
     TypeOrmModule.forRootAsync({
       useFactory: () => ({
         type: 'postgres',
-        url: 'postgresql://postgres:Raahi123@raahidb.checc0g624in.us-east-1.rds.amazonaws.com:5432/postgres',
+        // url: 'postgresql://postgres:Raahi123@raahidb.checc0g624in.us-east-1.rds.amazonaws.com:5432/postgres',
+        url: process.env.DATABASE_URL,
         schema: process.env.DATABASE_SCHEMA ?? 'reviewdb',
         entities: [ProviderReview, TravelerReview],
         synchronize: false,

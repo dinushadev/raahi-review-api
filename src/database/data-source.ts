@@ -11,11 +11,20 @@ export const AppDataSource = new DataSource({
   schema: process.env.DATABASE_SCHEMA ?? 'reviewdb',
   entities: [__dirname + '/entities/*.entity{.ts,.js}'],
   migrations: [__dirname + '/migrations/*{.ts,.js}'],
-  ssl: true,
-  extra: {
-    ssl: {
-      rejectUnauthorized: false,
-    },
-  },
+  // ssl: true,
+  ssl: process.env.DATABASE_SSL !== 'false',
+  // extra: {
+  //   ssl: {
+  //     rejectUnauthorized: false,
+  //   },
+  // },
+  extra:
+  process.env.DATABASE_SSL !== 'false'
+    ? {
+        ssl: {
+          rejectUnauthorized: false,
+        },
+      }
+    : {},
   synchronize: true,
 });
