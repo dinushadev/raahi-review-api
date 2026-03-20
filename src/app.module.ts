@@ -5,6 +5,7 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
 import { ProviderReview } from './database/entities/provider-review.entity';
+import { ProviderReviewReply } from './database/entities/provider-review-reply.entity';
 import { TravelerReview } from './database/entities/traveler-review.entity';
 import { UserContextMiddleware } from './common/middleware/user-context.middleware';
 
@@ -20,7 +21,7 @@ import { UserContextMiddleware } from './common/middleware/user-context.middlewa
         // url: 'postgresql://postgres:Raahi123@raahidb.checc0g624in.us-east-1.rds.amazonaws.com:5432/postgres',
         url: process.env.DATABASE_URL,
         schema: process.env.DATABASE_SCHEMA ?? 'reviewdb',
-        entities: [ProviderReview, TravelerReview],
+        entities: [ProviderReview, ProviderReviewReply, TravelerReview],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
         ssl: process.env.DATABASE_SSL !== 'false' ? { rejectUnauthorized: false } : false,
