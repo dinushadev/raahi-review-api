@@ -6,7 +6,10 @@ import { AdminModule } from './admin/admin.module';
 import { HealthModule } from './health/health.module';
 import { ProviderReview } from './database/entities/provider-review.entity';
 import { TravelerReview } from './database/entities/traveler-review.entity';
+import { ReviewReply } from './database/entities/review-reply.entity';
 import { UserContextMiddleware } from './common/middleware/user-context.middleware';
+import { RepliesModule } from './replies/replies.module';
+
 
 @Module({
   imports: [
@@ -17,9 +20,9 @@ import { UserContextMiddleware } from './common/middleware/user-context.middlewa
     TypeOrmModule.forRootAsync({
       useFactory: () => ({
         type: 'postgres',
-        url: 'postgresql://postgres:Raahi123@raahidb.checc0g624in.us-east-1.rds.amazonaws.com:5432/postgres',
+        url: process.env.DATABASE_URL,
         schema: process.env.DATABASE_SCHEMA ?? 'reviewdb',
-        entities: [ProviderReview, TravelerReview],
+        entities: [ProviderReview, TravelerReview, ReviewReply],
         synchronize: false,
         logging: process.env.NODE_ENV === 'development',
         ssl: process.env.DATABASE_SSL !== 'false' ? { rejectUnauthorized: false } : false,
@@ -28,6 +31,7 @@ import { UserContextMiddleware } from './common/middleware/user-context.middlewa
     ReviewsModule,
     AdminModule,
     HealthModule,
+    RepliesModule
   ],
 })
 export class AppModule implements NestModule {

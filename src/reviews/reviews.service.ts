@@ -13,6 +13,7 @@ import { ReviewStatus } from '../database/entities/review-status.enum';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { SubjectReviewsQueryDto } from './dto/subject-reviews-query.dto';
+import { ReviewReply } from '../database/entities/review-reply.entity';
 
 const EDIT_WINDOW_HOURS = 24;
 
@@ -27,6 +28,11 @@ export interface SubjectReviewsResult {
     reviewer_name: string | null;
     is_verified: boolean;
     created_at: Date;
+    reply?: {
+      reply_text: string;
+      created_at: Date;
+      updated_at: Date;
+    } | null;
   }>;
 }
 
@@ -165,12 +171,73 @@ export class ReviewsService {
     providerId: string,
     query: SubjectReviewsQueryDto,
   ): Promise<SubjectReviewsResult> {
-    return this.getSubjectReviews(
-      this.providerReviewRepo,
-      'provider_id',
-      providerId,
-      query,
-    );
+    const sort = query.sort ?? 'recent';
+    const limit = Math.min(query.limit ?? 10, 100);
+    const offset = query.offset ?? 0;
+
+    // First get the average rating and total count.
+    const aggregate = await this.providerReviewRepo
+      .createQueryBuilder('r')
+      .where('r.provider_id = :providerId', { providerId })
+      .andWhere('r.status = :status', { status: ReviewStatus.APPROVED })
+      .select('AVG(r.rating)', 'average_rating')
+      .addSelect('COUNT(r.id)', 'total_reviews')
+      .getRawOne<{ average_rating: string; total_reviews: string }>();
+
+    const totalReviews = parseInt(aggregate?.total_reviews ?? '0', 10);
+    const averageRating = aggregate?.average_rating
+      ? parseFloat(aggregate.average_rating)
+      : null;
+
+    const order: Record<string, 'ASC' | 'DESC'> =
+      sort === 'rating'
+        ? { 'r.rating': 'DESC', 'r.created_at': 'DESC' }
+        : { 'r.created_at': 'DESC' };
+
+    // Provider reviews should include the provider's reply if it exists
+    // and has not been soft-deleted.
+    const reviews = await this.providerReviewRepo
+      .createQueryBuilder('r')
+      .leftJoin(
+        ReviewReply,
+        'reply',
+        'reply.review_id = r.id AND reply.deleted_at IS NULL',
+      )
+      .where('r.provider_id = :providerId', { providerId })
+      .andWhere('r.status = :status', { status: ReviewStatus.APPROVED })
+      .select([
+        'r.rating',
+        'r.review_text',
+        'r.reviewer_name',
+        'r.is_verified',
+        'r.created_at',
+        'reply.reply_text',
+        'reply.created_at',
+        'reply.updated_at',
+      ])
+      .orderBy(order)
+      .skip(offset)
+      .take(limit)
+      .getRawMany();
+
+    return {
+      average_rating: averageRating,
+      total_reviews: totalReviews,
+      reviews: reviews.map((review) => ({
+        rating: review.r_rating,
+        review_text: review.r_review_text,
+        reviewer_name: review.r_reviewer_name,
+        is_verified: review.r_is_verified,
+        created_at: review.r_created_at,
+        reply: review.reply_reply_text
+          ? {
+              reply_text: review.reply_reply_text,
+              created_at: review.reply_created_at,
+              updated_at: review.reply_updated_at,
+            }
+          : null,
+      })),
+    };
   }
 
   async getTravelerReviews(
@@ -185,6 +252,7 @@ export class ReviewsService {
     );
   }
 
+  // Shared review list logic for endpoints that do not need reply data.
   private async getSubjectReviews(
     repo: Repository<ProviderReview> | Repository<TravelerReview>,
     subjectColumn: 'provider_id' | 'traveler_id',
@@ -213,26 +281,34 @@ export class ReviewsService {
 
     const order: Record<string, 'ASC' | 'DESC'> =
       sort === 'rating'
-        ? { rating: 'DESC', created_at: 'DESC' }
-        : { created_at: 'DESC' };
+        ? { 'r.rating': 'DESC', 'r.created_at': 'DESC' }
+        : { 'r.created_at': 'DESC' };
 
-    const reviews = await repo.find({
-      where: { [subjectColumn]: subjectId, status: ReviewStatus.APPROVED },
-      select: ['rating', 'review_text', 'reviewer_name', 'is_verified', 'created_at'],
-      order,
-      skip: offset,
-      take: limit,
-    });
+    const reviews = await repo
+      .createQueryBuilder('r')
+      .where(`r.${subjectColumn} = :subjectId`, { subjectId })
+      .andWhere('r.status = :status', { status: ReviewStatus.APPROVED })
+      .select([
+        'r.rating',
+        'r.review_text',
+        'r.reviewer_name',
+        'r.is_verified',
+        'r.created_at',
+      ])
+      .orderBy(order)
+      .skip(offset)
+      .take(limit)
+      .getRawMany();
 
     return {
       average_rating: averageRating,
       total_reviews: totalReviews,
-      reviews: reviews.map((r) => ({
-        rating: r.rating,
-        review_text: r.review_text,
-        reviewer_name: r.reviewer_name,
-        is_verified: r.is_verified,
-        created_at: r.created_at,
+      reviews: reviews.map((review) => ({
+        rating: review.r_rating,
+        review_text: review.r_review_text,
+        reviewer_name: review.r_reviewer_name,
+        is_verified: review.r_is_verified,
+        created_at: review.r_created_at,
       })),
     };
   }

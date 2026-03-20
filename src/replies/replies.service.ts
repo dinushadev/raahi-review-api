@@ -21,7 +21,7 @@ export class RepliesService {
     private reviewRepo: Repository<ProviderReview>,
   ) {}
 
-  // 🔹 CREATE REPLY
+  // Create a reply for a provider review.
   async createReply(reviewId: string, userId: string, replyText: string) {
     const review = await this.reviewRepo.findOne({
       where: { id: reviewId },
@@ -31,12 +31,12 @@ export class RepliesService {
       throw new NotFoundException('Review not found');
     }
 
-    // Check provider ownership
+    // Only the provider who received the review can reply.
     if (review.provider_id !== userId) {
       throw new ForbiddenException('You can only reply to your own reviews');
     }
 
-    // Check if reply already exists
+    // Only one reply is allowed per review.
     const existingReply = await this.replyRepo.findOne({
       where: { review_id: reviewId },
     });
@@ -54,7 +54,7 @@ export class RepliesService {
     return this.replyRepo.save(reply);
   }
 
-  // 🔹 UPDATE REPLY
+  // Update an existing reply within 48 hours.
   async updateReply(replyId: string, userId: string, replyText: string) {
     const reply = await this.replyRepo.findOne({
       where: { id: replyId },
@@ -64,12 +64,10 @@ export class RepliesService {
       throw new NotFoundException('Reply not found');
     }
 
-    // Check ownership
     if (reply.provider_id !== userId) {
       throw new ForbiddenException('You can only update your own reply');
     }
 
-    // Check 48-hour rule
     const now = new Date();
     const created = new Date(reply.created_at);
     const diffHours =
@@ -84,8 +82,8 @@ export class RepliesService {
     return this.replyRepo.save(reply);
   }
 
-  // 🔹 DELETE REPLY (SOFT DELETE)
-  async deleteReply(replyId: string, userId: string) {
+  // Soft-delete a reply by setting deleted_at.
+  async deleteReply(replyId: string, userId: string): Promise<void> {
     const reply = await this.replyRepo.findOne({
       where: { id: replyId },
     });
@@ -94,7 +92,6 @@ export class RepliesService {
       throw new NotFoundException('Reply not found');
     }
 
-    // Check ownership
     if (reply.provider_id !== userId) {
       throw new ForbiddenException('You can only delete your own reply');
     }
@@ -102,7 +99,5 @@ export class RepliesService {
     reply.deleted_at = new Date();
 
     await this.replyRepo.save(reply);
-
-    return { message: 'Reply deleted successfully' };
   }
 }
