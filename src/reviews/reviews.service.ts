@@ -50,7 +50,7 @@ export class ReviewsService {
     private readonly providerReviewReplyRepo: Repository<ProviderReviewReply>,
     @InjectRepository(TravelerReview)
     private readonly travelerReviewRepo: Repository<TravelerReview>,
-  ) {}
+  ) { }
 
   async create(
     reviewerId: string,
@@ -126,11 +126,26 @@ export class ReviewsService {
       throw new ForbiddenException('You can only reply to reviews about yourself');
     }
 
+    // if (review.status !== ReviewStatus.APPROVED) {
+    //   throw new ConflictException('Replies can only be added to approved reviews');
+    // }
+
     const existing = await this.providerReviewReplyRepo.findOne({
       where: { review_id: reviewId },
     });
+
+    // if (existing) {
+    //   throw new ConflictException('This review already has a reply');
+    // }
+
     if (existing) {
-      throw new ConflictException('This review already has a reply');
+      if (existing.status === ReviewReplyStatus.ACTIVE) {
+        throw new ConflictException('This review already has a reply');
+      }
+
+      throw new ConflictException(
+        'This review already had a reply and cannot be replied to again',
+      );
     }
 
     const reply = this.providerReviewReplyRepo.create({
@@ -304,12 +319,12 @@ export class ReviewsService {
 
     const replies = reviews.length
       ? await this.providerReviewReplyRepo.find({
-          where: {
-            review_id: In(reviews.map((review) => review.id)),
-            status: ReviewReplyStatus.ACTIVE,
-          },
-          select: ['review_id', 'reply_text', 'created_at', 'updated_at'],
-        })
+        where: {
+          review_id: In(reviews.map((review) => review.id)),
+          status: ReviewReplyStatus.ACTIVE,
+        },
+        select: ['review_id', 'reply_text', 'created_at', 'updated_at'],
+      })
       : [];
 
     const repliesByReviewId = new Map(
@@ -330,10 +345,10 @@ export class ReviewsService {
           created_at: review.created_at,
           reply: reply
             ? {
-                reply_text: reply.reply_text,
-                created_at: reply.created_at,
-                updated_at: reply.updated_at,
-              }
+              reply_text: reply.reply_text,
+              created_at: reply.created_at,
+              updated_at: reply.updated_at,
+            }
             : null,
         };
       }),
